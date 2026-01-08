@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pathfinding Lab | BFS vs DFS vs A*</title>
+    <style>
+        :root { --bg: #0f172a; --accent: #38bdf8; --wall: #1e293b; --path: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #maze-container { display: grid; gap: 2px; background: var(--wall); padding: 5px; border-radius: 8px; margin: 20px; }
+        .cell { width: 22px; height: 22px; background: var(--path); transition: 0.1s; border-radius: 2px; }
+        .wall { background: var(--wall); }
+        .start { background: #22c55e !important; }
+        .goal { background: #ef4444 !important; }
+        .visited-bfs { background: #cbd5e1; }
+        .visited-astar { background: #7dd3fc; }
+        .visited-dfs { background: #fca5a5; } /* Reddish for DFS */
+        .final-path { background: #fbbf24 !important; transform: scale(0.8); box-shadow: 0 0 8px #fbbf24; }
+        .stats { font-weight: bold; color: var(--accent); margin: 10px; min-height: 24px; }
+        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; background: var(--accent); font-weight: bold; color: var(--bg); }
+        .legend { margin-top: 15px; font-size: 0.8rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+    <h1>Search Strategy Visualizer</h1>
+    <div id="stat-line" class="stats">Ready to explore...</div>
+
+    <div id="maze-container"></div>
+
+    <div class="controls">
+        <button onclick="run('BFS')">BFS (Shortest Path)</button>
+        <button onclick="run('DFS')" style="background: #f87171;">DFS (Long Path)</button>
+        <button onclick="run('Astar')" style="background: #60a5fa;">A* (Smartest)</button>
+        <button onclick="reset()" style="background: #475569; color: white;">Reset Maze</button>
+    </div>
+
+    <div class="legend">
+        <b>BFS:</b> Level-by-level (Shortest) | <b>DFS:</b> Branch-by-branch (Longest) | <b>A*:</b> Directional (Optimized)
+    </div>
+
+<script>
+    const rows = 15, cols = 30;
+    const start = [7, 1], goal = [7, 28];
+    
+    // Complex Maze with "Long Path" trap for DFS
+    let maze = Array(rows).fill().map(() => Array(cols).fill(0));
+    // Vertical barriers with a gap
+    for(let r=0; r<rows; r++) {
+        if(r !== 1 && r !== 13) maze[r][10] = 1;
+        if(r !== 7) maze[r][20] = 1;
+    }
+
+    function createGrid() {
+        const container = document.getElementById('maze-container');
+        container.style.gridTemplateColumns = `repeat(${cols}, 22px)`;
+        container.innerHTML = '';
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                const div = document.createElement('div');
+                div.id = `c-${r}-${c}`;
+                div.className = 'cell' + (maze[r][c] === 1 ? ' wall' : '');
+                if(r===start[0] && c===start[1]) div.classList.add('start');
+                if(r===goal[0] && c===goal[1]) div.classList.add('goal');
+                container.appendChild(div);
+            }
+        }
+    }
+
+    async function animate(path, visited, type) {
+        const stats = document.getElementById('stat-line');
+        for(let i=0; i<visited.length; i++) {
+            let v = visited[i];
+            let cell = document.getElementById(`c-${v[0]}-${v[1]}`);
+            if(!cell.classList.contains('start') && !cell.classList.contains('goal')) {
+                cell.className = `cell visited-${type.toLowerCase()}`;
+            }
+            stats.innerText = `${type} explored ${i+1} cells.`;
+            await new Promise(r => setTimeout(r, 2));
+        }
+        if(path.length > 0) {
+            for(let p of path) {
+                document.getElementById(`c-${p[0]}-${p[1]}`).classList.add('final-path');
+                await new Promise(r => setTimeout(r, 15));
+            }
+            stats.innerText += ` Path length: ${path.length} steps.`;
+        } else {
+            stats.innerText = "No path found.";
+        }
+    }
+
+    function getNeighbors(r, c) {
+        let n = [];
+        // Direction order affects DFS pathing (Right, Down, Left, Up)
+        [[0,1],[1,0],[0,-1],[-1,0]].forEach(([dr, dc]) => {
+            let nr=r+dr, nc=c+dc;
+            if(nr>=0 && nr<rows && nc>=0 && nc<cols && maze[nr][nc]===0) n.push([nr,nc]);
+        });
+        return n;
+    }
+
+    function run(type) {
+        reset();
+        let visited = [], path = [];
+        let seen = new Set([start.toString()]);
+
+        if(type === 'BFS') {
+            let q = [[start, [start]]];
+            while(q.length) {
+                let [curr, p] = q.shift();
+                visited.push(curr);
+                if(curr[0]===goal[0] && curr[1]===goal[1]) { path = p; break; }
+                for(let n of getNeighbors(curr[0], curr[1])) {
+                    if(!seen.has(n.toString())) { seen.add(n.toString()); q.push([n, [...p, n]]); }
+                }
+            }
+        } else if(type === 'DFS') {
+            let stack = [[start, [start]]];
+            while(stack.length) {
+                let [curr, p] = stack.pop();
+                visited.push(curr);
+                if(curr[0]===goal[0] && curr[1]===goal[1]) { path = p; break; }
+                for(let n of getNeighbors(curr[0], curr[1])) {
+                    if(!seen.has(n.toString())) { seen.add(n.toString()); stack.push([n, [...p, n]]); }
+                }
+            }
+        } else { // A*
+            const h = (p) => Math.abs(p[0]-goal[0]) + Math.abs(p[1]-goal[1]);
+            let pq = [{pos: start, path: [start], g: 0, f: h(start)}];
+            let aseen = new Map();
+            while(pq.length) {
+                pq.sort((a,b) => a.f - b.f);
+                let {pos, path:p, g} = pq.shift();
+                visited.push(pos);
+                if(pos[0]===goal[0] && pos[1]===goal[1]) { path = p; break; }
+                for(let n of getNeighbors(pos[0], pos[1])) {
+                    let ng = g + 1;
+                    if(!aseen.has(n.toString()) || ng < aseen.get(n.toString())) {
+                        aseen.set(n.toString(), ng);
+                        pq.push({pos: n, path: [...p, n], g: ng, f: ng + h(n)});
+                    }
+                }
+            }
+        }
+        animate(path, visited, type);
+    }
+
+    function reset() {
+        createGrid();
+        document.getElementById('stat-line').innerText = "Ready to explore...";
+    }
+    createGrid();
+</script>
+</body>
+</html>
