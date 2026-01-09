@@ -1,155 +1,428 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Pathfinding Lab | BFS vs DFS vs A*</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pathfinding Lab | Advanced Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #0f172a; --accent: #38bdf8; --wall: #1e293b; --path: #f8fafc; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        #maze-container { display: grid; gap: 2px; background: var(--wall); padding: 5px; border-radius: 8px; margin: 20px; }
-        .cell { width: 22px; height: 22px; background: var(--path); transition: 0.1s; border-radius: 2px; }
-        .wall { background: var(--wall); }
-        .start { background: #22c55e !important; }
-        .goal { background: #ef4444 !important; }
-        .visited-bfs { background: #cbd5e1; }
-        .visited-astar { background: #7dd3fc; }
-        .visited-dfs { background: #fca5a5; } /* Reddish for DFS */
-        .final-path { background: #fbbf24 !important; transform: scale(0.8); box-shadow: 0 0 8px #fbbf24; }
-        .stats { font-weight: bold; color: var(--accent); margin: 10px; min-height: 24px; }
-        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; background: var(--accent); font-weight: bold; color: var(--bg); }
-        .legend { margin-top: 15px; font-size: 0.8rem; color: #94a3b8; }
+        :root {
+            --bg: #030712;
+            --card-bg: rgba(17, 24, 39, 0.8);
+            --accent-primary: #38bdf8;
+            --accent-secondary: #818cf8;
+            --accent-error: #f43f5e;
+            --accent-success: #10b981;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --wall: #1e293b;
+            --path: #0f172a;
+            --grid-line: rgba(255, 255, 255, 0.03);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top left, #0f172a, #030712);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .stats-container {
+            font-size: 1rem;
+            color: var(--text-dim);
+            height: 24px;
+            font-weight: 400;
+            transition: color 0.3s ease;
+        }
+
+        .main-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 1000px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #maze-container {
+            display: grid;
+            gap: 4px;
+            background: var(--path);
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 24px;
+            cursor: crosshair;
+        }
+
+        .cell {
+            width: 20px;
+            height: 20px;
+            background: var(--path);
+            border-radius: 4px;
+            transition: background 0.2s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+
+        .wall {
+            background: var(--wall);
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .start {
+            background: var(--accent-success) !important;
+            box-shadow: 0 0 15px var(--accent-success);
+            z-index: 2;
+        }
+
+        .goal {
+            background: var(--accent-error) !important;
+            box-shadow: 0 0 15px var(--accent-error);
+            z-index: 2;
+        }
+
+        .visited-bfs {
+            background: rgba(56, 189, 248, 0.4);
+            animation: pop 0.4s ease;
+        }
+
+        .visited-astar {
+            background: rgba(129, 140, 248, 0.4);
+            animation: pop 0.4s ease;
+        }
+
+        .visited-dfs {
+            background: rgba(244, 63, 94, 0.4);
+            animation: pop 0.4s ease;
+        }
+
+        @keyframes pop {
+            0% {
+                transform: scale(0.3);
+                border-radius: 50%;
+            }
+
+            100% {
+                transform: scale(1);
+                border-radius: 4px;
+            }
+        }
+
+        .final-path {
+            background: #fbbf24 !important;
+            transform: scale(0.9);
+            box-shadow: 0 0 12px #fbbf24;
+            z-index: 1;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+            border-color: var(--accent-primary);
+        }
+
+        button.active-btn {
+            background: var(--accent-primary);
+            color: var(--bg);
+            border-color: var(--accent-primary);
+        }
+
+        button.reset-btn {
+            background: #334155;
+            color: white;
+        }
+
+        button.reset-btn:hover {
+            background: #475569;
+        }
+
+        .legend {
+            margin-top: 32px;
+            display: flex;
+            gap: 24px;
+            padding: 16px 32px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 100px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .cell {
+                width: 15px;
+                height: 15px;
+            }
+
+            #maze-container {
+                gap: 2px;
+            }
+        }
     </style>
 </head>
+
 <body>
 
-    <h1>Search Strategy Visualizer</h1>
-    <div id="stat-line" class="stats">Ready to explore...</div>
+    <header>
+        <h1>Search Strategy Lab</h1>
+        <div id="stat-line" class="stats-container">Select an algorithm to begin visualization</div>
+    </header>
 
-    <div id="maze-container"></div>
+    <div class="main-card">
+        <div id="maze-container"></div>
 
-    <div class="controls">
-        <button onclick="run('BFS')">BFS (Shortest Path)</button>
-        <button onclick="run('DFS')" style="background: #f87171;">DFS (Long Path)</button>
-        <button onclick="run('Astar')" style="background: #60a5fa;">A* (Smartest)</button>
-        <button onclick="reset()" style="background: #475569; color: white;">Reset Maze</button>
+        <div class="controls">
+            <button onclick="run('BFS')" id="btn-BFS">
+                <span>Breadth First</span>
+            </button>
+            <button onclick="run('DFS')" id="btn-DFS" style="border-color: #fca5a522;">
+                <span>Depth First</span>
+            </button>
+            <button onclick="run('Astar')" id="btn-Astar" style="border-color: #93c5fd22;">
+                <span>A* Search</span>
+            </button>
+            <button onclick="reset()" class="reset-btn">
+                <span>Reset Grid</span>
+            </button>
+        </div>
     </div>
 
     <div class="legend">
-        <b>BFS:</b> Level-by-level (Shortest) | <b>DFS:</b> Branch-by-branch (Longest) | <b>A*:</b> Directional (Optimized)
+        <div class="legend-item">
+            <div class="dot" style="background: var(--accent-success)"></div> Start
+        </div>
+        <div class="legend-item">
+            <div class="dot" style="background: var(--accent-error)"></div> Goal
+        </div>
+        <div class="legend-item">
+            <div class="dot" style="background: var(--wall)"></div> Wall
+        </div>
+        <div class="legend-item">
+            <div class="dot" style="background: #fbbf24"></div> Final Path
+        </div>
     </div>
 
-<script>
-    const rows = 15, cols = 30;
-    const start = [7, 1], goal = [7, 28];
-    
-    // Complex Maze with "Long Path" trap for DFS
-    let maze = Array(rows).fill().map(() => Array(cols).fill(0));
-    // Vertical barriers with a gap
-    for(let r=0; r<rows; r++) {
-        if(r !== 1 && r !== 13) maze[r][10] = 1;
-        if(r !== 7) maze[r][20] = 1;
-    }
+    <script>
+        const rows = 18, cols = 40;
+        const start = [9, 2], goal = [9, 37];
 
-    function createGrid() {
-        const container = document.getElementById('maze-container');
-        container.style.gridTemplateColumns = `repeat(${cols}, 22px)`;
-        container.innerHTML = '';
-        for(let r=0; r<rows; r++) {
-            for(let c=0; c<cols; c++) {
-                const div = document.createElement('div');
-                div.id = `c-${r}-${c}`;
-                div.className = 'cell' + (maze[r][c] === 1 ? ' wall' : '');
-                if(r===start[0] && c===start[1]) div.classList.add('start');
-                if(r===goal[0] && c===goal[1]) div.classList.add('goal');
-                container.appendChild(div);
+        let maze = Array(rows).fill().map(() => Array(cols).fill(0));
+
+        // Create a more interesting maze layout
+        function generateMaze() {
+            maze = Array(rows).fill().map(() => Array(cols).fill(0));
+            // Vertical pillars
+            for (let r = 0; r < rows; r++) {
+                if (r !== 2 && r !== 15 && r !== 8 && r !== 9) maze[r][10] = 1;
+                if (r !== 0 && r !== 17 && r !== 5 && r !== 12) maze[r][20] = 1;
+                if (r !== 8 && r !== 9 && r !== 10) maze[r][30] = 1;
+            }
+            // Horizontal blockers
+            for (let c = 12; c < 28; c++) {
+                if (c !== 15 && c !== 22) maze[5][c] = 1;
+                if (c !== 18 && c !== 25) maze[12][c] = 1;
             }
         }
-    }
 
-    async function animate(path, visited, type) {
-        const stats = document.getElementById('stat-line');
-        for(let i=0; i<visited.length; i++) {
-            let v = visited[i];
-            let cell = document.getElementById(`c-${v[0]}-${v[1]}`);
-            if(!cell.classList.contains('start') && !cell.classList.contains('goal')) {
-                cell.className = `cell visited-${type.toLowerCase()}`;
-            }
-            stats.innerText = `${type} explored ${i+1} cells.`;
-            await new Promise(r => setTimeout(r, 2));
-        }
-        if(path.length > 0) {
-            for(let p of path) {
-                document.getElementById(`c-${p[0]}-${p[1]}`).classList.add('final-path');
-                await new Promise(r => setTimeout(r, 15));
-            }
-            stats.innerText += ` Path length: ${path.length} steps.`;
-        } else {
-            stats.innerText = "No path found.";
-        }
-    }
-
-    function getNeighbors(r, c) {
-        let n = [];
-        // Direction order affects DFS pathing (Right, Down, Left, Up)
-        [[0,1],[1,0],[0,-1],[-1,0]].forEach(([dr, dc]) => {
-            let nr=r+dr, nc=c+dc;
-            if(nr>=0 && nr<rows && nc>=0 && nc<cols && maze[nr][nc]===0) n.push([nr,nc]);
-        });
-        return n;
-    }
-
-    function run(type) {
-        reset();
-        let visited = [], path = [];
-        let seen = new Set([start.toString()]);
-
-        if(type === 'BFS') {
-            let q = [[start, [start]]];
-            while(q.length) {
-                let [curr, p] = q.shift();
-                visited.push(curr);
-                if(curr[0]===goal[0] && curr[1]===goal[1]) { path = p; break; }
-                for(let n of getNeighbors(curr[0], curr[1])) {
-                    if(!seen.has(n.toString())) { seen.add(n.toString()); q.push([n, [...p, n]]); }
+        function createGrid() {
+            const container = document.getElementById('maze-container');
+            container.style.gridTemplateColumns = `repeat(${cols}, 20px)`;
+            container.innerHTML = '';
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const div = document.createElement('div');
+                    div.id = `c-${r}-${c}`;
+                    div.className = 'cell' + (maze[r][c] === 1 ? ' wall' : '');
+                    if (r === start[0] && c === start[1]) div.classList.add('start');
+                    if (r === goal[0] && c === goal[1]) div.classList.add('goal');
+                    container.appendChild(div);
                 }
             }
-        } else if(type === 'DFS') {
-            let stack = [[start, [start]]];
-            while(stack.length) {
-                let [curr, p] = stack.pop();
-                visited.push(curr);
-                if(curr[0]===goal[0] && curr[1]===goal[1]) { path = p; break; }
-                for(let n of getNeighbors(curr[0], curr[1])) {
-                    if(!seen.has(n.toString())) { seen.add(n.toString()); stack.push([n, [...p, n]]); }
+        }
+
+        async function animate(path, visited, type) {
+            const stats = document.getElementById('stat-line');
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(b => b.disabled = true);
+
+            for (let i = 0; i < visited.length; i++) {
+                let v = visited[i];
+                let cell = document.getElementById(`c-${v[0]}-${v[1]}`);
+                if (!cell.classList.contains('start') && !cell.classList.contains('goal')) {
+                    cell.className = `cell visited-${type.toLowerCase()}`;
                 }
+                stats.innerText = `${type} explored ${i + 1} nodes...`;
+                if (i % 5 === 0) await new Promise(r => setTimeout(r, 1));
             }
-        } else { // A*
-            const h = (p) => Math.abs(p[0]-goal[0]) + Math.abs(p[1]-goal[1]);
-            let pq = [{pos: start, path: [start], g: 0, f: h(start)}];
-            let aseen = new Map();
-            while(pq.length) {
-                pq.sort((a,b) => a.f - b.f);
-                let {pos, path:p, g} = pq.shift();
-                visited.push(pos);
-                if(pos[0]===goal[0] && pos[1]===goal[1]) { path = p; break; }
-                for(let n of getNeighbors(pos[0], pos[1])) {
-                    let ng = g + 1;
-                    if(!aseen.has(n.toString()) || ng < aseen.get(n.toString())) {
-                        aseen.set(n.toString(), ng);
-                        pq.push({pos: n, path: [...p, n], g: ng, f: ng + h(n)});
+
+            if (path.length > 0) {
+                for (let p of path) {
+                    const cell = document.getElementById(`c-${p[0]}-${p[1]}`);
+                    if (!cell.classList.contains('start') && !cell.classList.contains('goal')) {
+                        cell.classList.add('final-path');
+                    }
+                    await new Promise(r => setTimeout(r, 15));
+                }
+                stats.innerHTML = `<span style="color:var(--accent-success)">Path found!</span> ${path.length} steps | ${visited.length} nodes explored.`;
+            } else {
+                stats.innerHTML = `<span style="color:var(--accent-error)">No path found.</span>`;
+            }
+
+            buttons.forEach(b => b.disabled = false);
+        }
+
+        function getNeighbors(r, c) {
+            let n = [];
+            [[0, 1], [1, 0], [0, -1], [-1, 0]].forEach(([dr, dc]) => {
+                let nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && maze[nr][nc] === 0) n.push([nr, nc]);
+            });
+            return n;
+        }
+
+        function run(type) {
+            reset(false);
+            let visited = [], path = [];
+            let seen = new Set([start.toString()]);
+
+            if (type === 'BFS') {
+                let q = [[start, [start]]];
+                while (q.length) {
+                    let [curr, p] = q.shift();
+                    visited.push(curr);
+                    if (curr[0] === goal[0] && curr[1] === goal[1]) { path = p; break; }
+                    for (let n of getNeighbors(curr[0], curr[1])) {
+                        if (!seen.has(n.toString())) { seen.add(n.toString()); q.push([n, [...p, n]]); }
+                    }
+                }
+            } else if (type === 'DFS') {
+                let stack = [[start, [start]]];
+                while (stack.length) {
+                    let [curr, p] = stack.pop();
+                    visited.push(curr);
+                    if (curr[0] === goal[0] && curr[1] === goal[1]) { path = p; break; }
+                    for (let n of getNeighbors(curr[0], curr[1])) {
+                        if (!seen.has(n.toString())) { seen.add(n.toString()); stack.push([n, [...p, n]]); }
+                    }
+                }
+            } else { // A*
+                const h = (p) => Math.abs(p[0] - goal[0]) + Math.abs(p[1] - goal[1]);
+                let pq = [{ pos: start, path: [start], g: 0, f: h(start) }];
+                let aseen = new Map();
+                while (pq.length) {
+                    pq.sort((a, b) => a.f - b.f);
+                    let { pos, path: p, g } = pq.shift();
+                    visited.push(pos);
+                    if (pos[0] === goal[0] && pos[1] === goal[1]) { path = p; break; }
+                    for (let n of getNeighbors(pos[0], pos[1])) {
+                        let ng = g + 1;
+                        if (!aseen.has(n.toString()) || ng < aseen.get(n.toString())) {
+                            aseen.set(n.toString(), ng);
+                            pq.push({ pos: n, path: [...p, n], g: ng, f: ng + h(n) });
+                        }
                     }
                 }
             }
+            animate(path, visited, type);
         }
-        animate(path, visited, type);
-    }
 
-    function reset() {
+        function reset(full = true) {
+            if (full) generateMaze();
+            createGrid();
+            document.getElementById('stat-line').innerText = "Ready to explore...";
+        }
+
+        generateMaze();
         createGrid();
-        document.getElementById('stat-line').innerText = "Ready to explore...";
-    }
-    createGrid();
-</script>
+    </script>
 </body>
+
 </html>
